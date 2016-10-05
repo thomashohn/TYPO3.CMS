@@ -17,6 +17,7 @@ namespace TYPO3\CMS\Backend\View;
 use Doctrine\DBAL\Driver\Statement;
 use TYPO3\CMS\Backend\Controller\Page\LocalizationController;
 use TYPO3\CMS\Backend\Controller\PageLayoutController;
+use TYPO3\CMS\Backend\Preview\PreviewRendererResolverInterface;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Database\Connection;
@@ -222,6 +223,11 @@ class PageLayoutView extends \TYPO3\CMS\Recordlist\RecordList\AbstractDatabaseRe
     protected $localizationController;
 
     /**
+     * @var PreviewRendererResolverInterface
+     */
+    protected $previewRendererResolver;
+
+    /**
      * Construct to initialize class variables.
      */
     public function __construct()
@@ -229,6 +235,7 @@ class PageLayoutView extends \TYPO3\CMS\Recordlist\RecordList\AbstractDatabaseRe
         parent::__construct();
         $this->localizationController = GeneralUtility::makeInstance(LocalizationController::class);
         $this->iconFactory = GeneralUtility::makeInstance(IconFactory::class);
+        $this->previewRendererResolver = GeneralUtility::makeInstance($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['backend']['previewRendererResolver']);
         $pageRenderer = GeneralUtility::makeInstance(PageRenderer::class);
         $pageRenderer->addInlineLanguageLabelFile('EXT:backend/Resources/Private/Language/locallang_layout.xlf');
         $pageRenderer->loadRequireJsModule('TYPO3/CMS/Backend/Tooltip');
@@ -614,6 +621,13 @@ class PageLayoutView extends \TYPO3\CMS\Recordlist\RecordList\AbstractDatabaseRe
                         }
                         if (is_array($row) && !VersionState::cast($row['t3ver_state'])->equals(VersionState::DELETE_PLACEHOLDER)) {
                             $singleElementHTML = '';
+                            $previewRenderer = $this->previewRendererResolver->resolveRendererFor($this->table, $row);
+                            $previewContent = $previewRenderer->wrapPageModulePreview(
+                                $previewRenderer->renderPageModulePreviewContent($row, $this) .
+                                $previewRenderer->renderPageModulePreviewHeader($row, $this),
+                                $row,
+                                $this
+                            );
                             if (!$lP && ($this->defLangBinding || $row['sys_language_uid'] != -1)) {
                                 $defaultLanguageElementsByColumn[$columnId][] = (isset($row['_ORIG_uid']) ? $row['_ORIG_uid'] : $row['uid']);
                             }
@@ -629,8 +643,9 @@ class PageLayoutView extends \TYPO3\CMS\Recordlist\RecordList\AbstractDatabaseRe
                                 true,
                                 $this->getBackendUser()->doesUserHaveAccess($this->pageinfo, Permission::CONTENT_EDIT)
                             );
-                            $innerContent = '<div ' . ($row['_ORIG_uid'] ? ' class="ver-element"' : '') . '>'
-                                . $this->tt_content_drawItem($row) . '</div>';
+                            $innerContent = '<div ' . ($row['_ORIG_uid'] ? ' class="ver-element"' : '') . '>';
+                            $innerContent .= $previewContent;
+                            $innerContent .= '</div>';
                             $singleElementHTML .= '<div class="t3-page-ce-body-inner">' . $innerContent . '</div>'
                                 . $this->tt_content_drawFooter($row);
                             $isDisabled = $this->isDisabled('tt_content', $row);
@@ -1638,29 +1653,13 @@ class PageLayoutView extends \TYPO3\CMS\Recordlist\RecordList\AbstractDatabaseRe
      * @param array $row Content element
      * @return string HTML
      * @throws \UnexpectedValueException
+     * @deprecated Deprecated on 8.4, is not public API but method is public for legacy reasons.
      */
     public function tt_content_drawItem($row)
     {
+        GeneralUtility::logDeprecatedFunction();
+        $outHeader = $outHeader;
         $out = '';
-        $outHeader = '';
-        // Make header:
-
-        if ($row['header']) {
-            $infoArr = [];
-            $this->getProcessedValue('tt_content', 'header_position,header_layout,header_link', $row, $infoArr);
-            $hiddenHeaderNote = '';
-            // If header layout is set to 'hidden', display an accordant note:
-            if ($row['header_layout'] == 100) {
-                $hiddenHeaderNote = ' <em>[' . htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:lang/locallang_core.xlf:labels.hidden')) . ']</em>';
-            }
-            $outHeader = $row['date']
-                ? htmlspecialchars($this->itemLabels['date'] . ' ' . BackendUtility::date($row['date'])) . '<br />'
-                : '';
-            $outHeader .= '<strong>' . $this->linkEditContent($this->renderText($row['header']), $row)
-                . $hiddenHeaderNote . '</strong><br />';
-        }
-        // Make content:
-        $infoArr = [];
         $drawItem = true;
         // Hook: Render an own preview of a record
         $drawItemHooks = &$GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['cms/layout/class.tx_cms_layout.php']['tt_content_drawItem'];
@@ -1673,187 +1672,18 @@ class PageLayoutView extends \TYPO3\CMS\Recordlist\RecordList\AbstractDatabaseRe
                 $hookObject->preProcess($this, $drawItem, $outHeader, $out, $row);
             }
         }
-
-        // If the previous hook did not render something,
-        // then check if a Fluid-based preview template was defined for this CType
-        // and render it via Fluid. Possible option:
-        // mod.web_layout.tt_content.preview.media = EXT:site_mysite/Resources/Private/Templates/Preview/Media.html
         if ($drawItem) {
-            $tsConfig = BackendUtility::getModTSconfig($row['pid'], 'mod.web_layout.tt_content.preview');
-            if (!empty($tsConfig['properties'][$row['CType']])) {
-                $fluidTemplateFile = $tsConfig['properties'][$row['CType']];
-                $fluidTemplateFile = GeneralUtility::getFileAbsFileName($fluidTemplateFile);
-                if ($fluidTemplateFile) {
-                    try {
-                        /** @var StandaloneView $view */
-                        $view = GeneralUtility::makeInstance(StandaloneView::class);
-                        $view->setTemplatePathAndFilename($fluidTemplateFile);
-                        $view->assignMultiple($row);
-                        if (!empty($row['pi_flexform'])) {
-                            /** @var FlexFormService $flexFormService */
-                            $flexFormService = GeneralUtility::makeInstance(FlexFormService::class);
-                            $view->assign('pi_flexform_transformed', $flexFormService->convertFlexFormContentToArray($row['pi_flexform']));
-                        }
-                        $out = $view->render();
-                        $drawItem = false;
-                    } catch (\Exception $e) {
-                        // Catch any exception to avoid breaking the view
-                    }
-                }
-            }
+            // only draw default preview if not disabled by hooks.
+            $outHeader .= $previewRenderer->renderPageModulePreviewHeader($row, $this);
+            $out .= $previewRenderer->renderPageModulePreviewContent($row, $this);
         }
-
-        // Draw preview of the item depending on its CType (if not disabled by previous hook):
-        if ($drawItem) {
-            switch ($row['CType']) {
-                case 'header':
-                    if ($row['subheader']) {
-                        $out .= $this->linkEditContent($this->renderText($row['subheader']), $row) . '<br />';
-                    }
-                    break;
-                case 'bullets':
-                case 'table':
-                    if ($row['bodytext']) {
-                        $out .= $this->linkEditContent($this->renderText($row['bodytext']), $row) . '<br />';
-                    }
-                    break;
-                case 'uploads':
-                    if ($row['media']) {
-                        $out .= $this->linkEditContent($this->getThumbCodeUnlinked($row, 'tt_content', 'media'), $row) . '<br />';
-                    }
-                    break;
-                case 'menu':
-                    $contentType = $this->CType_labels[$row['CType']];
-                    $out .= $this->linkEditContent('<strong>' . htmlspecialchars($contentType) . '</strong>', $row) . '<br />';
-                    // Add Menu Type
-                    $menuTypeLabel = $this->getLanguageService()->sL(
-                        BackendUtility::getLabelFromItemListMerged($row['pid'], 'tt_content', 'menu_type', $row['menu_type'])
-                    );
-                    $menuTypeLabel = $menuTypeLabel ?: 'invalid menu type';
-                    $out .= $this->linkEditContent($menuTypeLabel, $row);
-                    if ($row['menu_type'] !== '2' && ($row['pages'] || $row['selected_categories'])) {
-                        // Show pages if menu type is not "Sitemap"
-                        $out .= ':' . $this->linkEditContent($this->generateListForCTypeMenu($row), $row) . '<br />';
-                    }
-                    break;
-                case 'shortcut':
-                    if (!empty($row['records'])) {
-                        $shortcutContent = [];
-                        $recordList = explode(',', $row['records']);
-                        foreach ($recordList as $recordIdentifier) {
-                            $split = BackendUtility::splitTable_Uid($recordIdentifier);
-                            $tableName = empty($split[0]) ? 'tt_content' : $split[0];
-                            $shortcutRecord = BackendUtility::getRecord($tableName, $split[1]);
-                            if (is_array($shortcutRecord)) {
-                                $icon = $this->iconFactory->getIconForRecord($tableName, $shortcutRecord, Icon::SIZE_SMALL)->render();
-                                $icon = BackendUtility::wrapClickMenuOnIcon(
-                                    $icon,
-                                    $tableName,
-                                    $shortcutRecord['uid'],
-                                    1,
-                                    '',
-                                    '+copy,info,edit,view'
-                                );
-                                $shortcutContent[] = $icon
-                                    . htmlspecialchars(BackendUtility::getRecordTitle($tableName, $shortcutRecord));
-                            }
-                        }
-                        $out .= implode('<br />', $shortcutContent) . '<br />';
-                    }
-                    break;
-                case 'list':
-                    $hookArr = [];
-                    $hookOut = '';
-                    if (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['cms/layout/class.tx_cms_layout.php']['list_type_Info'][$row['list_type']])) {
-                        $hookArr = $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['cms/layout/class.tx_cms_layout.php']['list_type_Info'][$row['list_type']];
-                    } elseif (is_array($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['cms/layout/class.tx_cms_layout.php']['list_type_Info']['_DEFAULT'])) {
-                        $hookArr = $GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS']['cms/layout/class.tx_cms_layout.php']['list_type_Info']['_DEFAULT'];
-                    }
-                    if (!empty($hookArr)) {
-                        $_params = ['pObj' => &$this, 'row' => $row, 'infoArr' => $infoArr];
-                        foreach ($hookArr as $_funcRef) {
-                            $hookOut .= GeneralUtility::callUserFunction($_funcRef, $_params, $this);
-                        }
-                    }
-                    if ((string)$hookOut !== '') {
-                        $out .= $hookOut;
-                    } elseif (!empty($row['list_type'])) {
-                        $label = BackendUtility::getLabelFromItemListMerged($row['pid'], 'tt_content', 'list_type', $row['list_type']);
-                        if (!empty($label)) {
-                            $out .= $this->linkEditContent('<strong>' . htmlspecialchars($this->getLanguageService()->sL($label)) . '</strong>', $row) . '<br />';
-                        } else {
-                            $message = sprintf($this->getLanguageService()->sL('LLL:EXT:lang/locallang_core.xlf:labels.noMatchingValue'), $row['list_type']);
-                            $out .= '<span class="label label-warning">' . htmlspecialchars($message) . '</span>';
-                        }
-                    } elseif (!empty($row['select_key'])) {
-                        $out .= htmlspecialchars($this->getLanguageService()->sL(BackendUtility::getItemLabel('tt_content', 'select_key')))
-                            . ' ' . htmlspecialchars($row['select_key']) . '<br />';
-                    } else {
-                        $out .= '<strong>' . $this->getLanguageService()->getLL('noPluginSelected') . '</strong>';
-                    }
-                    $out .= htmlspecialchars($this->getLanguageService()->sL(
-                            BackendUtility::getLabelFromItemlist('tt_content', 'pages', $row['pages'])
-                        )) . '<br />';
-                    break;
-                default:
-                    $contentType = $this->CType_labels[$row['CType']];
-
-                    if (isset($contentType)) {
-                        $out .= $this->linkEditContent('<strong>' . htmlspecialchars($contentType) . '</strong>', $row) . '<br />';
-                        if ($row['bodytext']) {
-                            $out .= $this->linkEditContent($this->renderText($row['bodytext']), $row) . '<br />';
-                        }
-                        if ($row['image']) {
-                            $out .= $this->linkEditContent($this->getThumbCodeUnlinked($row, 'tt_content', 'image'), $row) . '<br />';
-                        }
-                    } else {
-                        $message = sprintf(
-                            $this->getLanguageService()->sL('LLL:EXT:lang/locallang_core.xlf:labels.noMatchingValue'),
-                            $row['CType']
-                        );
-                        $out .= '<span class="label label-warning">' . htmlspecialchars($message) . '</span>';
-                    }
-            }
-        }
-        // Wrap span-tags:
-        $out = '
-			<span class="exampleContent">' . $out . '</span>';
-        // Add header:
-        $out = $outHeader . $out;
-        // Return values:
-        if ($this->isDisabled('tt_content', $row)) {
-            return '<span class="text-muted">' . $out . '</span>';
-        } else {
-            return $out;
-        }
-    }
-
-    /**
-     * Generates a list of selected pages or categories for the CType menu
-     *
-     * @param array $row row from pages
-     * @return string
-     */
-    protected function generateListForCTypeMenu(array $row)
-    {
-        $table = 'pages';
-        $field = 'pages';
-        // get categories instead of pages
-        if (strpos($row['menu_type'], 'categorized_') !== false) {
-            $table = 'sys_category';
-            $field = 'selected_categories';
-        }
-        if (trim($row[$field]) === '') {
-            return '';
-        }
-        $content = '';
-        $uidList = explode(',', $row[$field]);
-        foreach ($uidList as $uid) {
-            $uid = (int)$uid;
-            $record = BackendUtility::getRecord($table, $uid, 'title');
-            $content .= '<br>' . $record['title'] . ' (' . $uid . ')';
-        }
-        return $content;
+        $previewRenderer = $this->previewRendererResolver->resolveRendererFor($this->table, $row);
+        return $previewRenderer->wrapPageModulePreview(
+            $outHeader .
+            $out,
+            $row,
+            $this
+        );
     }
 
     /**

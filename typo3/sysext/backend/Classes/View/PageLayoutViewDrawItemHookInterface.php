@@ -17,6 +17,8 @@ namespace TYPO3\CMS\Backend\View;
 /**
  * Interface for classes which hook into PageLayoutView and do additional
  * tt_content_drawItem processing.
+ *
+ * @deprecated Deprecated since 8.4, replaced with PreviewRendererInterface and related implementations
  */
 interface PageLayoutViewDrawItemHookInterface
 {

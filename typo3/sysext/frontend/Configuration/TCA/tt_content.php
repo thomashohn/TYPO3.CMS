@@ -22,6 +22,7 @@ return [
         'transOrigPointerField' => 'l18n_parent',
         'transOrigDiffSourceField' => 'l18n_diffsource',
         'languageField' => 'sys_language_uid',
+        'previewRenderer' => \TYPO3\CMS\Backend\Preview\StandardContentPreviewRenderer::class,
         'enablecolumns' => [
             'disabled' => 'hidden',
             'starttime' => 'starttime',
