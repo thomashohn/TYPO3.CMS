@@ -15,7 +15,9 @@ namespace TYPO3\CMS\Core\Tests\Unit\DataHandler;
  */
 
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
+use TYPO3\CMS\Core\Cache\Frontend\VariableFrontend;
 use TYPO3\CMS\Core\Database\DatabaseConnection;
+use TYPO3\CMS\Core\Cache\CacheManager;
 use TYPO3\CMS\Core\DataHandling\DataHandler;
 use TYPO3\CMS\Core\Tests\AccessibleObjectInterface;
 use TYPO3\CMS\Core\Tests\Unit\DataHandling\Fixtures\AllowAccessHookFixture;
@@ -383,10 +385,9 @@ class DataHandlerTest extends \TYPO3\CMS\Core\Tests\UnitTestCase
         ];
 
         /** @var $subject DataHandler|\PHPUnit_Framework_MockObject_MockObject */
-        $subject = $this->getMock(
-            DataHandler::class,
-            ['newlog', 'checkModifyAccessList', 'tableReadOnly', 'checkRecordUpdateAccess']
-        );
+        $subject = $this->getMockBuilder(DataHandler::class)
+            ->setMethods(['newlog', 'checkModifyAccessList', 'tableReadOnly', 'checkRecordUpdateAccess', 'getCacheManager', 'getRuntimeCache', 'registerElementsToBeDeleted', 'resetElementsToBeDeleted'])
+            ->getMock();
 
         $subject->bypassWorkspaceRestrictions = false;
         $subject->datamap = [
@@ -396,6 +397,14 @@ class DataHandlerTest extends \TYPO3\CMS\Core\Tests\UnitTestCase
                 ]
             ]
         ];
+
+        $cacheManagerMock = $this->getMockBuilder(CacheManager::class)
+            ->setMethods(['flushCachesInGroupByTags'])
+            ->disableOriginalConstructor()
+            ->getMock();
+        $cacheManagerMock->expects($this->once())->method('flushCachesInGroupByTags')->with('pages', []);
+
+        $subject->expects($this->once())->method('getCacheManager')->willReturn($cacheManagerMock);
         $subject->expects($this->once())->method('checkModifyAccessList')->with('pages')->will($this->returnValue(true));
         $subject->expects($this->once())->method('tableReadOnly')->with('pages')->will($this->returnValue(false));
         $subject->expects($this->once())->method('checkRecordUpdateAccess')->will($this->returnValue(true));

@@ -97,6 +97,22 @@ class CacheManagerTest extends \TYPO3\CMS\Core\Tests\UnitTestCase
     /**
      * @test
      */
+    public function flushCachesByTagsCallsTheFlushByTagsMethodOfAllRegisteredCaches()
+    {
+        $manager = new \TYPO3\CMS\Core\Cache\CacheManager();
+        $cache1 = $this->getMock(\TYPO3\CMS\Core\Cache\Frontend\AbstractFrontend::class, ['getIdentifier', 'set', 'get', 'getByTag', 'has', 'remove', 'flush', 'flushByTags'], [], '', false);
+        $cache1->expects($this->atLeastOnce())->method('getIdentifier')->will($this->returnValue('cache1'));
+        $cache1->expects($this->once())->method('flushByTags')->with($this->equalTo(['theTag']));
+        $manager->registerCache($cache1);
+        $cache2 = $this->getMock(\TYPO3\CMS\Core\Cache\Frontend\AbstractFrontend::class, ['getIdentifier', 'set', 'get', 'getByTag', 'has', 'remove', 'flush', 'flushByTags'], [], '', false);
+        $cache2->expects($this->once())->method('flushByTags')->with($this->equalTo(['theTag']));
+        $manager->registerCache($cache2);
+        $manager->flushCachesByTags(['theTag']);
+    }
+
+    /**
+     * @test
+     */
     public function flushCachesCallsTheFlushMethodOfAllRegisteredCaches()
     {
         $manager = new \TYPO3\CMS\Core\Cache\CacheManager();

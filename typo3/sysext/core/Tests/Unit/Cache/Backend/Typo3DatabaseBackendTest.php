@@ -512,4 +512,70 @@ class Typo3DatabaseBackendTest extends \TYPO3\CMS\Core\Tests\UnitTestCase
 
         $backend->flushByTag('UnitTestTag%special');
     }
+
+    /**
+     * @test
+     */
+    public function flushByTagsRemovesCacheEntriesWithSpecifiedTags()
+    {
+        /** @var \TYPO3\CMS\Core\Cache\Backend\Typo3DatabaseBackend|\PHPUnit_Framework_MockObject_MockObject $backend */
+        $backend = $this->getMock(\TYPO3\CMS\Core\Cache\Backend\Typo3DatabaseBackend::class, ['dummy'], ['Testing']);
+        $this->setUpMockFrontendOfBackend($backend);
+
+        $GLOBALS['TYPO3_DB'] = $this->getMock(\TYPO3\CMS\Core\Database\DatabaseConnection::class, [], [], '', false);
+        $GLOBALS['TYPO3_DB']
+            ->expects($this->at(0))
+            ->method('exec_SELECTquery')
+            ->with(
+                'DISTINCT identifier',
+                'cf_Testing_tags',
+                'cf_Testing_tags.tag IN (\'UnitTestTag%special\')'
+            );
+        $GLOBALS['TYPO3_DB']
+            ->expects($this->at(1))
+            ->method('sql_fetch_assoc')
+            ->will($this->returnValue(['identifier' => 'BackendDbTest1']));
+        $GLOBALS['TYPO3_DB']
+            ->expects($this->at(2))
+            ->method('fullQuoteStr')
+            ->with('BackendDbTest1', 'cf_Testing')
+            ->will($this->returnValue('BackendDbTest1'));
+        $GLOBALS['TYPO3_DB']
+            ->expects($this->at(3))
+            ->method('sql_fetch_assoc')
+            ->will($this->returnValue(['identifier' => 'BackendDbTest2']));
+        $GLOBALS['TYPO3_DB']
+            ->expects($this->at(4))
+            ->method('fullQuoteStr')
+            ->with('BackendDbTest2', 'cf_Testing')
+            ->will($this->returnValue('BackendDbTest2'));
+        $GLOBALS['TYPO3_DB']
+            ->expects($this->at(5))
+            ->method('sql_fetch_assoc')
+            ->will($this->returnValue(false));
+        $GLOBALS['TYPO3_DB']
+            ->expects($this->at(6))
+            ->method('sql_free_result')
+            ->will($this->returnValue(true));
+        $GLOBALS['TYPO3_DB']
+            ->expects($this->at(7))
+            ->method('exec_DELETEquery')
+            ->with('cf_Testing', 'identifier IN (BackendDbTest1, BackendDbTest2)');
+        $GLOBALS['TYPO3_DB']
+            ->expects($this->at(8))
+            ->method('exec_DELETEquery')
+            ->with('cf_Testing_tags', 'identifier IN (BackendDbTest1, BackendDbTest2)');
+
+        $backend->flushByTags(['UnitTestTag%special']);
+    }
+
+    /**
+     * @test
+     */
+    public function flushByTagsThrowsExceptionIfFrontendWasNotSet()
+    {
+        $subject = new \TYPO3\CMS\Core\Cache\Backend\Typo3DatabaseBackend('Testing');
+        $this->setExpectedException(\TYPO3\CMS\Core\Cache\Exception::class, null, 1236518288);
+        $subject->flushByTags([]);
+    }
 }

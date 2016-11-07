@@ -79,10 +79,32 @@ class AbstractFrontendTest extends \TYPO3\CMS\Core\Tests\UnitTestCase
     {
         $tag = 'sometag';
         $identifier = 'someCacheIdentifier';
-        $backend = $this->getMock(\TYPO3\CMS\Core\Cache\Backend\TaggableBackendInterface::class, ['setCache', 'get', 'set', 'has', 'remove', 'findIdentifiersByTag', 'flush', 'flushByTag', 'collectGarbage'], [], '', false);
+        $backend = $this->getMockBuilder(\TYPO3\CMS\Core\Cache\Backend\TaggableBackendInterface::class)
+            ->setMethods(['setCache', 'get', 'set', 'has', 'remove', 'findIdentifiersByTag', 'flush', 'flushByTag', 'flushByTags', 'collectGarbage'])
+            ->disableOriginalConstructor()
+            ->getMock();
         $backend->expects($this->once())->method('flushByTag')->with($tag);
         $cache = $this->getMock(\TYPO3\CMS\Core\Cache\Frontend\StringFrontend::class, ['__construct', 'get', 'set', 'has', 'remove', 'getByTag'], [$identifier, $backend]);
         $cache->flushByTag($tag);
+    }
+
+    /**
+     * @test
+     */
+    public function flushByTagsCallsBackendIfItIsATaggableBackend()
+    {
+        $tag = 'sometag';
+        $identifier = 'someCacheIdentifier';
+        $backend = $this->getMockBuilder(\TYPO3\CMS\Core\Cache\Backend\TaggableBackendInterface::class)
+            ->setMethods(['setCache', 'get', 'set', 'has', 'remove', 'findIdentifiersByTag', 'flush', 'flushByTag', 'flushByTags', 'collectGarbage'])
+            ->disableOriginalConstructor()
+            ->getMock();
+        $backend->expects($this->once())->method('flushByTags')->with([$tag]);
+        $cache = $this->getMockBuilder(\TYPO3\CMS\Core\Cache\Frontend\StringFrontend::class)
+            ->setMethods(['__construct', 'get', 'set', 'has', 'remove', 'getByTag'])
+            ->setConstructorArgs([$identifier, $backend])
+            ->getMock();
+        $cache->flushByTags([$tag]);
     }
 
     /**

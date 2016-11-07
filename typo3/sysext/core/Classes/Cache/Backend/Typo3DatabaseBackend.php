@@ -16,6 +16,7 @@ namespace TYPO3\CMS\Core\Cache\Backend;
 use TYPO3\CMS\Core\Cache\Exception;
 use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * A caching backend which stores cache entries in database tables
@@ -269,6 +270,60 @@ class Typo3DatabaseBackend extends AbstractBackend implements TaggableBackendInt
         $this->throwExceptionIfFrontendDoesNotExist();
         $GLOBALS['TYPO3_DB']->exec_TRUNCATEquery($this->cacheTable);
         $GLOBALS['TYPO3_DB']->exec_TRUNCATEquery($this->tagsTable);
+    }
+
+    /**
+     * Removes all entries tagged by any of the specified tags. Performs the SQL
+     * operation as a bulk query for better performance.
+     *
+     * @param string[] $tags
+     */
+    public function flushByTags(array $tags)
+    {
+        $this->throwExceptionIfFrontendDoesNotExist();
+
+        if (empty($tags)) {
+            return;
+        }
+
+        // A large set of tags was detected. Process it in chunks to guard against exceeding
+        // maximum SQL query limits.
+        if (count($tags) > 100) {
+            array_walk(array_chunk($tags, 100), [$this, 'flushByTags']);
+            return;
+        }
+        // VERY simple quoting of tags is sufficient here for performance. Tags are already
+        // validated to not contain any bad characters, e.g. they are automatically generated
+        // inside this class and suffixed with a pure integer enforced by DB.
+        $quotedTagList = array_map(function ($value) {
+            return '\'' . $value . '\'';
+        }, $tags);
+
+        if ($this->isConnectionMysql()) {
+            // Use a optimized query on mysql ... don't use on your own
+            // * ansi sql does not know about multi table delete
+            // * doctrine query builder does not support join on delete()
+            $GLOBALS['TYPO3_DB']->exec_query(
+                'DELETE tags2, cache1'
+                . ' FROM ' . $this->tagsTable . ' AS tags1'
+                . ' JOIN ' . $this->tagsTable . ' AS tags2 ON tags1.identifier = tags2.identifier'
+                . ' JOIN ' . $this->cacheTable . ' AS cache1 ON tags1.identifier = cache1.identifier'
+                . ' WHERE tags1.tag IN (' . implode(',', $quotedTagList) . ')'
+            );
+        } else {
+            $tagsTableWhereClause = $this->tagsTable . '.tag IN (' . implode(',', $quotedTagList) . ')';
+            $cacheEntryIdentifierRowsResource = $GLOBALS['TYPO3_DB']->exec_SELECTquery('DISTINCT identifier', $this->tagsTable, $tagsTableWhereClause);
+            $cacheEntryIdentifiers = [];
+            while ($cacheEntryIdentifierRow = $GLOBALS['TYPO3_DB']->sql_fetch_assoc($cacheEntryIdentifierRowsResource)) {
+                $cacheEntryIdentifiers[] = $GLOBALS['TYPO3_DB']->fullQuoteStr($cacheEntryIdentifierRow['identifier'], $this->cacheTable);
+            }
+            $GLOBALS['TYPO3_DB']->sql_free_result($cacheEntryIdentifierRowsResource);
+            if (!empty($cacheEntryIdentifiers)) {
+                $deleteWhereClause = 'identifier IN (' . implode(', ', $cacheEntryIdentifiers) . ')';
+                $GLOBALS['TYPO3_DB']->exec_DELETEquery($this->cacheTable, $deleteWhereClause);
+                $GLOBALS['TYPO3_DB']->exec_DELETEquery($this->tagsTable, $deleteWhereClause);
+            }
+        }
     }
 
     /**
