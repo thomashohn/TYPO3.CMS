@@ -171,12 +171,20 @@ abstract class AbstractFrontend implements FrontendInterface
     /**
      * Checks the validity of a tag. Returns TRUE if it's valid.
      *
-     * @param string $tag An identifier to be checked for validity
+     * @param string|array $tag An identifier to be checked for validity
      * @return bool
      * @api
      */
     public function isValidTag($tag)
     {
-        return preg_match(self::PATTERN_TAG, $tag) === 1;
+        if (!is_array($tag)) {
+            return preg_match(self::PATTERN_TAG, $tag) === 1;
+        }
+        foreach ($tag as $tagValue) {
+            if (!$this->isValidTag($tagValue)) {
+                return false;
+            }
+        }
+        return true;
     }
 }

@@ -179,13 +179,16 @@ class CacheManager implements SingletonInterface
      * caches of a specific group.
      *
      * @param string $groupIdentifier
-     * @param string $tag Tag to search for
+     * @param string|array $tag Tag to search for
      * @return void
      * @throws NoSuchCacheGroupException
      * @api
      */
     public function flushCachesInGroupByTag($groupIdentifier, $tag)
     {
+        if (empty($tag)) {
+            return;
+        }
         $this->createAllCaches();
         if (isset($this->cacheGroups[$groupIdentifier])) {
             foreach ($this->cacheGroups[$groupIdentifier] as $cacheIdentifier) {
