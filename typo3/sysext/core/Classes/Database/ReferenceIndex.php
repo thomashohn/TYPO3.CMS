@@ -225,7 +225,7 @@ class ReferenceIndex
 
         // Get current index from Database with hash as index using $uidIndexField
         $currentRelations = $databaseConnection->exec_SELECTgetRows(
-            '*',
+            'hash',
             'sys_refindex',
             'tablename=' . $databaseConnection->fullQuoteStr($tableName, 'sys_refindex')
             . ' AND recuid=' . (int)$uid . ' AND workspace=' . $this->getWorkspaceId(),
@@ -241,29 +241,37 @@ class ReferenceIndex
                 $relations = $this->generateDataUsingRecord($tableName, $existingRecord);
                 if (!is_array($relations)) {
                     return $result;
-                } else {
-                    // Traverse the generated index:
-                    foreach ($relations as &$relation) {
-                        if (!is_array($relation)) {
-                            continue;
-                        }
-                        $relation['hash'] = md5(implode('///', $relation) . '///' . $this->hashVersion);
-                        // First, check if already indexed and if so, unset that row (so in the end we know which rows to remove!)
-                        if (isset($currentRelations[$relation['hash']])) {
-                            unset($currentRelations[$relation['hash']]);
-                            $result['keptNodes']++;
-                            $relation['_ACTION'] = 'KEPT';
-                        } else {
-                            // If new, add it:
-                            if (!$testOnly) {
-                                $databaseConnection->exec_INSERTquery('sys_refindex', $relation);
-                            }
-                            $result['addedNodes']++;
-                            $relation['_ACTION'] = 'ADDED';
-                        }
-                    }
-                    $result['relations'] = $relations;
                 }
+                // Traverse the generated index:
+                foreach ($relations as &$relation) {
+                    if (!is_array($relation)) {
+                        continue;
+                    }
+
+                    // Unset sorting since we don't want it to be part of the md5 sum
+                    unset($relation['sorting']);
+
+                    $relation['hash'] = md5(implode('///', $relation) . '///' . $this->hashVersion);
+                    // First, check if already indexed and if so, unset that row (so in the end we know which rows to remove!)
+                    if (isset($currentRelations[$relation['hash']])) {
+                        unset($currentRelations[$relation['hash']]);
+                        $result['keptNodes']++;
+                        $relation['_ACTION'] = 'KEPT';
+                    } else {
+                        // Since we have removed $relation['sorting'] from the md5 sum there might be inconsistent data
+                        // in sys_refindex and sys_category_record_mm
+                        if (!$testOnly && !$databaseConnection->exec_SELECTgetSingleRow(
+                            'hash',
+                            'sys_refindex',
+                            'hash=' . $databaseConnection->fullQuoteStr($relation['hash'], 'sys_refindex')
+                        )) {
+                            $databaseConnection->exec_INSERTquery('sys_refindex', $relation);
+                        }
+                        $result['addedNodes']++;
+                        $relation['_ACTION'] = 'ADDED';
+                    }
+                }
+                $result['relations'] = $relations;
             }
         }
 
