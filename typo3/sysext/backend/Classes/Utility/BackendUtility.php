@@ -4535,7 +4535,7 @@ class BackendUtility
     public static function getLiveVersionIdOfRecord($table, $uid)
     {
         $liveVersionId = null;
-        if (self::isTableWorkspaceEnabled($table)) {
+        if ((ExtensionManagementUtility::isLoaded('workspaces')) && (self::isTableWorkspaceEnabled($table))) {
             $currentRecord = self::getRecord($table, $uid, 'pid,t3ver_oid');
             if (is_array($currentRecord) && $currentRecord['pid'] == -1) {
                 $liveVersionId = $currentRecord['t3ver_oid'];
