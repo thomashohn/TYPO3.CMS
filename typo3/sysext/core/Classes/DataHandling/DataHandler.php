@@ -5927,6 +5927,9 @@ class DataHandler
      */
     public function processRemapStack()
     {
+        // Remember which [$table][$rawId][$hookArgs['status']] have been processed to avoid multiple calls
+        $processDatamapAfterDatabaseOperationsProcessed = [];
+
         // Processes the remap stack:
         if (is_array($this->remapStack)) {
             $remapFlexForms = [];
@@ -6008,15 +6011,21 @@ class DataHandler
                 // Process waiting Hook: processDatamap_afterDatabaseOperations:
                 if (isset($this->remapStackRecords[$table][$rawId]['processDatamap_afterDatabaseOperations'])) {
                     $hookArgs = $this->remapStackRecords[$table][$rawId]['processDatamap_afterDatabaseOperations'];
-                    // Update field with remapped data:
-                    $hookArgs['fieldArray'][$field] = $newValue;
-                    // Process waiting hook objects:
-                    $hookObjectsArr = $hookArgs['hookObjectsArr'];
-                    foreach ($hookObjectsArr as $hookObj) {
-                        if (method_exists($hookObj, 'processDatamap_afterDatabaseOperations')) {
-                            $hookObj->processDatamap_afterDatabaseOperations($hookArgs['status'], $table, $rawId, $hookArgs['fieldArray'], $this);
+                    // Check if we already have processed this record
+                    if (!isset($processDatamapAfterDatabaseOperationsProcessed[$table][$rawId][$hookArgs['status']])) {
+                        // Update field with remapped data:
+                        $hookArgs['fieldArray'][$field] = $newValue;
+                        // Process waiting hook objects:
+                        $hookObjectsArr = $hookArgs['hookObjectsArr'];
+                        foreach ($hookObjectsArr as $hookObj) {
+                            if (method_exists($hookObj, 'processDatamap_afterDatabaseOperations')) {
+                                $hookObj->processDatamap_afterDatabaseOperations($hookArgs['status'], $table, $rawId,
+                                    $hookArgs['fieldArray'], $this);
+                            }
                         }
                     }
+                    // Remember that [$table][$rawId][$hookArgs['status']] has been processed
+                    $processDatamapAfterDatabaseOperationsProcessed[$table][$rawId][$hookArgs['status']] = true;
                 }
             }
 
