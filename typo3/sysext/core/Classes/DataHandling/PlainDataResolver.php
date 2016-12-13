@@ -15,6 +15,7 @@ namespace TYPO3\CMS\Core\DataHandling;
  */
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Versioning\VersionState;
 
 /**
