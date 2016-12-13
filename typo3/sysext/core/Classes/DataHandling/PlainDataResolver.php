@@ -67,6 +67,11 @@ class PlainDataResolver
     protected $resolvedIds;
 
     /**
+     * @var
+     */
+    protected $performReindex;
+
+    /**
      * @param string $tableName
      * @param int[] $liveIds
      * @param NULL|string $sortingStatement
@@ -133,15 +138,17 @@ class PlainDataResolver
             return $this->resolvedIds;
         }
 
-        $ids = $this->reindex(
-            $this->processVersionOverlays($this->liveIds)
-        );
-        $ids = $this->reindex(
-            $this->processSorting($ids)
-        );
-        $ids = $this->reindex(
-            $this->applyLiveIds($ids)
-        );
+        // Only reindex if necessary
+        $tempIds = $this->processVersionOverlays($this->liveIds);
+        $ids = ($this->performReindex) ? $this->reindex($tempIds) : $tempIds;
+
+        // Only reindex if necessary
+        $tempIds = $this->processSorting($ids);
+        $ids = ($this->performReindex) ? $this->reindex($tempIds) : $tempIds;
+
+        // Only reindex if necessary
+        $tempIds = $this->applyLiveIds($ids);
+        $ids = ($this->performReindex) ? $this->reindex($tempIds) : $tempIds;
 
         $this->resolvedIds = $ids;
         return $this->resolvedIds;
@@ -156,7 +163,10 @@ class PlainDataResolver
      */
     public function processVersionOverlays(array $ids)
     {
+        $this->performReindex = true;
+
         if (empty($this->workspaceId) || !$this->isWorkspaceEnabled() || empty($ids)) {
+            $this->performReindex = false;
             return $ids;
         }
 
@@ -237,8 +247,11 @@ class PlainDataResolver
      */
     public function processSorting(array $ids)
     {
+        $this->performReindex = true;
+
         // Early return on missing sorting statement or insufficient data-set
         if (empty($this->sortingStatement) || count($ids) < 2) {
+            $this->performReindex = false;
             return $ids;
         }
 
@@ -271,7 +284,10 @@ class PlainDataResolver
      */
     public function applyLiveIds(array $ids)
     {
+        $this->performReindex = true;
+
         if (!$this->keepLiveIds || !$this->isWorkspaceEnabled() || empty($ids)) {
+            $this->performReindex = false;
             return $ids;
         }
 
