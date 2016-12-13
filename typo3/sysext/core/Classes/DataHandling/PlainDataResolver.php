@@ -319,6 +319,10 @@ class PlainDataResolver
      */
     protected function isWorkspaceEnabled()
     {
+        if (!ExtensionManagementUtility::isLoaded('workspaces')) {
+            return false;
+        }
+
         return BackendUtility::isTableWorkspaceEnabled($this->tableName);
     }
 
