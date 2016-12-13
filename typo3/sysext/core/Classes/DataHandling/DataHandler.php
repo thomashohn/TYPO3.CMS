@@ -28,6 +28,7 @@ use TYPO3\CMS\Core\Messaging\FlashMessageService;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
+use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\File\BasicFileUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
@@ -3211,6 +3212,9 @@ class DataHandler
         // Fetch the related child records using \TYPO3\CMS\Core\Database\RelationHandler
         /** @var $dbAnalysis RelationHandler */
         $dbAnalysis = $this->createRelationHandlerInstance();
+        if ($this->overwriteDefaultValueForLiveReferenceIds()) {
+            $dbAnalysis->setUseLiveReferenceIds(false);
+        }
         $dbAnalysis->start(implode(',', $valueArray), $foreignTable, '', 0, $table, $tcaFieldConf);
         // If the localizationMode is set to 'keep', the children for the localized parent are kept as in the original untranslated record:
         $localizationMode = BackendUtility::getInlineLocalizationMode($table, $tcaFieldConf);
@@ -3935,6 +3939,9 @@ class DataHandler
             // Fetch the related child records using \TYPO3\CMS\Core\Database\RelationHandler
             /** @var $dbAnalysis RelationHandler */
             $dbAnalysis = $this->createRelationHandlerInstance();
+            if ($this->overwriteDefaultValueForLiveReferenceIds()) {
+                $dbAnalysis->setUseLiveReferenceIds(false);
+            }
             $dbAnalysis->start($value, $conf['foreign_table'], '', $uid, $table, $conf);
             // Walk through the items, copy them and remember the new id:
             foreach ($dbAnalysis->itemArray as $k => $v) {
@@ -8563,5 +8570,20 @@ class DataHandler
     protected function getResourceFactory()
     {
         return ResourceFactory::getInstance();
+    }
+
+    /**
+     * Check if default Value For liveReferenceIds should be overwritten
+     *
+     * @return bool true if neither extension workspaces nor version are loaded
+     *
+     */
+    protected function overwriteDefaultValueForLiveReferenceIds()
+    {
+        if ((!ExtensionManagementUtility::isLoaded('workspaces')) && (!ExtensionManagementUtility::isLoaded('workspaces'))) {
+            return true;
+        }
+
+        return false;
     }
 }
