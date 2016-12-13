@@ -3435,7 +3435,7 @@ class DataHandler
         }
 
         // This checks if the record can be selected which is all that a copy action requires.
-        list($recordExists, $recordRow) = $this->doesRecordExistInternal($table, $uid, 'show');
+        list($recordExists, $recordRow) = $this->recordInfoExistsAndPermission($table, $uid, 'show');
         if (!$recordExists) {
             if ($this->enableLogging) {
                 $this->log($table, $uid, 1, 0, 1, 'Attempt to copy record "%s:%s" without permission', -1, [$table, $uid]);
@@ -6372,89 +6372,101 @@ class DataHandler
      */
     public function doesRecordExist($table, $id, $perms)
     {
-        list($exists, $row) = $this->doesRecordExistInternal($table, $id, $perms);
+        list($exists, $row) = $this->recordInfoExistsAndPermission($table, $id, $perms);
 
         return $exists;
     }
 
     /**
-     * Checks if record can be selected based on given permission criteria
+     * Checks if record Exists with and without Permission check and returns that row
      *
      * @param string $table Record table name
      * @param int $id Record UID
      * @param int|string $perms Permission restrictions to observe: Either an integer that will be bitwise AND'ed or a string, which points to a key in the ->pMap array
+     * @param string $fieldList - fields - default is '*'
+     * @param bool $skipPermsCheck Skip check for permissions and call getRecordInfo
      * @return array (bool, row)
      *
      * @throws \RuntimeException
      */
-    private function doesRecordExistInternal($table, $id, $perms)
+    public function recordInfoExistsAndPermission($table, $id, $perms = '', $fieldList = '*', $skipPermsCheck = false)
     {
-        $id = (int)$id;
-        if ($this->bypassAccessCheckForRecords) {
-            $row = BackendUtility::getRecordRaw($table, 'uid=' . $id, 'uid');
+        if ($skipPermsCheck === true) {
+            $row = $this->recordInfo($table, $id, $fieldList);
             if (is_array($row)) {
                 return array(true, $row);
             } else {
-                return array(false, array());
+                return array(false, arrray());
             }
-        }
-        // Processing the incoming $perms (from possible string to integer that can be AND'ed)
-        if (!MathUtility::canBeInterpretedAsInteger($perms)) {
-            if ($table != 'pages') {
-                switch ($perms) {
-                    case 'edit':
-
-                    case 'delete':
-
-                    case 'new':
-                        // This holds it all in case the record is not page!!
-                        if ($table === 'sys_file_reference' && array_key_exists('pages', $this->datamap)) {
-                            $perms = 'edit';
-                        } else {
-                            $perms = 'editcontent';
-                        }
-                        break;
-                }
-            }
-            $perms = (int)$this->pMap[$perms];
         } else {
-            $perms = (int)$perms;
-        }
-        if (!$perms) {
-            throw new \RuntimeException('Internal ERROR: no permissions to check for non-admin user', 1270853920);
-        }
-        // For all tables: Check if record exists:
-        $isWebMountRestrictionIgnored = BackendUtility::isWebMountRestrictionIgnored($table);
-        if (is_array($GLOBALS['TCA'][$table]) && $id > 0 && ($isWebMountRestrictionIgnored || $this->isRecordInWebMount($table, $id) || $this->admin)) {
-            if ($table != 'pages') {
-                // Find record without checking page:
-                $mres = $this->databaseConnection->exec_SELECTquery('*', $table, 'uid=' . (int)$id . $this->deleteClause($table));
-                // THIS SHOULD CHECK FOR editlock I think!
-                $output = $this->databaseConnection->sql_fetch_assoc($mres);
-                BackendUtility::fixVersioningPid($table, $output, true);
-                // If record found, check page as well:
-                if (is_array($output)) {
-                    // Looking up the page for record:
-                    $mres = $this->doesRecordExist_pageLookUp($output['pid'], $perms);
-                    $pageRec = $this->databaseConnection->sql_fetch_assoc($mres);
-                    // Return TRUE if either a page was found OR if the PID is zero AND the user is ADMIN (in which case the record is at root-level):
-                    $isRootLevelRestrictionIgnored = BackendUtility::isRootLevelRestrictionIgnored($table);
-                    if (is_array($pageRec) || !$output['pid'] && ($isRootLevelRestrictionIgnored || $this->admin)) {
-                        return array(true, $output);
-                    }
-                }
-                return false;
-            } else {
-                $mres = $this->doesRecordExist_pageLookUp($id, $perms, '*');
-                $output = $this->databaseConnection->sql_fetch_assoc($mres);
-                if (is_array($output)) {
-                    return array(true, $output);
+
+            $id = (int)$id;
+            if ($this->bypassAccessCheckForRecords) {
+                $row = BackendUtility::getRecordRaw($table, 'uid=' . $id, 'uid');
+                if (is_array($row)) {
+                    return array(true, $row);
                 } else {
                     return array(false, array());
                 }
             }
+            // Processing the incoming $perms (from possible string to integer that can be AND'ed)
+            if (!MathUtility::canBeInterpretedAsInteger($perms)) {
+                if ($table != 'pages') {
+                    switch ($perms) {
+                        case 'edit':
+
+                        case 'delete':
+
+                        case 'new':
+                            // This holds it all in case the record is not page!!
+                            if ($table === 'sys_file_reference' && array_key_exists('pages', $this->datamap)) {
+                                $perms = 'edit';
+                            } else {
+                                $perms = 'editcontent';
+                            }
+                            break;
+                    }
+                }
+                $perms = (int)$this->pMap[$perms];
+            } else {
+                $perms = (int)$perms;
+            }
+            if (!$perms) {
+                throw new \RuntimeException('Internal ERROR: no permissions to check for non-admin user', 1270853920);
+            }
+            // For all tables: Check if record exists:
+            $isWebMountRestrictionIgnored = BackendUtility::isWebMountRestrictionIgnored($table);
+            if (is_array($GLOBALS['TCA'][$table]) && $id > 0 && ($isWebMountRestrictionIgnored || $this->isRecordInWebMount($table, $id) || $this->admin)) {
+                if ($table != 'pages') {
+                    // Find record without checking page:
+                    $mres = $this->databaseConnection->exec_SELECTquery($fieldList, $table, 'uid=' . (int)$id . $this->deleteClause($table));
+                    // THIS SHOULD CHECK FOR editlock I think!
+                    $output = $this->databaseConnection->sql_fetch_assoc($mres);
+                    BackendUtility::fixVersioningPid($table, $output, true);
+                    // If record found, check page as well:
+                    if (is_array($output)) {
+                        // Looking up the page for record:
+                        $mres = $this->doesRecordExist_pageLookUp($output['pid'], $perms);
+                        $pageRec = $this->databaseConnection->sql_fetch_assoc($mres);
+                        // Return TRUE if either a page was found OR if the PID is zero AND the user is ADMIN (in which case the record is at root-level):
+                        $isRootLevelRestrictionIgnored = BackendUtility::isRootLevelRestrictionIgnored($table);
+                        if (is_array($pageRec) || !$output['pid'] && ($isRootLevelRestrictionIgnored || $this->admin)) {
+                            return array(true, $output);
+                        }
+                    }
+                    return false;
+                } else {
+                    $mres = $this->doesRecordExist_pageLookUp($id, $perms, '*');
+                    $output = $this->databaseConnection->sql_fetch_assoc($mres);
+                    if (is_array($output)) {
+                        return array(true, $output);
+                    } else {
+                        return array(false, array());
+                    }
+                }
+            }
+            return array(false, array());
         }
-        return array(false, array());
     }
 
 
