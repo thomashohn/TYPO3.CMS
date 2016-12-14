@@ -6417,14 +6417,14 @@ class DataHandler
             throw new \RuntimeException('Internal ERROR: no permissions to check for non-admin user', 1270853920);
         }
         // For all tables: Check if record exists:
-        $isWebMountRestrictionIgnored = BackendUtility::isWebMountRestrictionIgnored($table);
+        $isWebMountRestrictionIgnored = ($this->admin || BackendUtility::isWebMountRestrictionIgnored($table));
 
         // Get row
-        if (is_array($GLOBALS['TCA'][$table]) && $id > 0) {
+        if ((is_array($GLOBALS['TCA'][$table]) && $id > 0) || ($isWebMountRestrictionIgnored)) {
             $mres = $this->databaseConnection->exec_SELECTquery('*', $table, 'uid=' . (int)$id . $this->deleteClause($table));
             $rawRow = $this->databaseConnection->sql_fetch_assoc($mres);
 
-            if ($isWebMountRestrictionIgnored || $this->isRecordInWebMountWithRow($table, $id, $rawRow) || $this->admin) {
+            if ($this->isRecordInWebMountWithRow($table, $id, $rawRow)) {
                 if ($table != 'pages') {
                     $output = $rawRow;
                     BackendUtility::fixVersioningPid($table, $output, true);
