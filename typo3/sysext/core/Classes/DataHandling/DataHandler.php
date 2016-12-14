@@ -6240,6 +6240,23 @@ class DataHandler
     }
 
     /**
+     * Checking if a record with uid $id from $table is in the BE_USERS webmounts which is required for editing etc.
+     *
+     * @param string $table Table name
+     * @param int $id UID of record
+     * @param array $row row beeing processed
+     * @return bool Returns TRUE if OK. Cached results.
+     */
+    public function isRecordInWebMountWithRow($table, $id, $row)
+    {
+        if (!isset($this->isRecordInWebMount_Cache[$table . ':' . $id])) {
+            $recP = $this->getRecordPropertiesRow($table, $id, $row);
+            $this->isRecordInWebMount_Cache[$table . ':' . $id] = $this->isInWebMount($recP['event_pid']);
+        }
+        return $this->isRecordInWebMount_Cache[$table . ':' . $id];
+    }
+
+    /**
      * Checks if the input page ID is in the BE_USER webmounts
      *
      * @param int $pid Page ID to check
@@ -6441,12 +6458,14 @@ class DataHandler
         }
         // For all tables: Check if record exists:
         $isWebMountRestrictionIgnored = BackendUtility::isWebMountRestrictionIgnored($table);
-        if (is_array($GLOBALS['TCA'][$table]) && $id > 0 && ($isWebMountRestrictionIgnored || $this->isRecordInWebMount($table, $id) || $this->admin)) {
+
+        // Get row without checking page
+        $mres = $this->databaseConnection->exec_SELECTquery($fieldList, $table, 'uid=' . (int)$id . $this->deleteClause($table));
+        $rawRow = $this->databaseConnection->sql_fetch_assoc($mres);
+
+        if (is_array($GLOBALS['TCA'][$table]) && $id > 0 && ($isWebMountRestrictionIgnored || $this->isRecordInWebMountWithRow($table, $id, $rawRow) || $this->admin)) {
             if ($table != 'pages') {
-                // Find record without checking page:
-                $mres = $this->databaseConnection->exec_SELECTquery($fieldList, $table, 'uid=' . (int)$id . $this->deleteClause($table));
-                // THIS SHOULD CHECK FOR editlock I think!
-                $output = $this->databaseConnection->sql_fetch_assoc($mres);
+                $output = $rawRow;
                 BackendUtility::fixVersioningPid($table, $output, true);
                 // If record found, check page as well:
                 if (is_array($output)) {
@@ -6702,6 +6721,31 @@ class DataHandler
             BackendUtility::workspaceOL($table, $row);
         }
         return $this->getRecordPropertiesFromRow($table, $row);
+    }
+
+    /**
+     * Returns an array with record properties, like header and pid
+     * No check for deleted or access is done!
+     * For versionized records, pid is resolved to its live versions pid.
+     * Used for logging
+     *
+     * @param string $table Table name
+     * @param int $id Uid of record
+     * @param array $row row beeing processed
+     * @param bool $noWSOL If set, no workspace overlay is performed
+     * @return array Properties of record
+     */
+    public function getRecordPropertiesRow($table, $id, $row, $noWSOL = false)
+    {
+        if ($table == 'pages' && !$id) {
+            $processingRow = ['title' => '[root-level]', 'uid' => 0, 'pid' => 0];
+        } else {
+            $processingRow = $row;
+        }
+        if (!$noWSOL) {
+            BackendUtility::workspaceOL($table, $processingRow);
+        }
+        return $this->getRecordPropertiesFromRow($table, $processingRow);
     }
 
     /**
