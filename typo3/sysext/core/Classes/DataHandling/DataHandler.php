@@ -6420,28 +6420,30 @@ class DataHandler
         $isWebMountRestrictionIgnored = BackendUtility::isWebMountRestrictionIgnored($table);
 
         // Get row
-        $mres = $this->databaseConnection->exec_SELECTquery('*', $table, 'uid=' . (int)$id . $this->deleteClause($table));
-        $rawRow = $this->databaseConnection->sql_fetch_assoc($mres);
+        if (is_array($GLOBALS['TCA'][$table]) && $id > 0) {
+            $mres = $this->databaseConnection->exec_SELECTquery('*', $table, 'uid=' . (int)$id . $this->deleteClause($table));
+            $rawRow = $this->databaseConnection->sql_fetch_assoc($mres);
 
-        if (is_array($GLOBALS['TCA'][$table]) && $id > 0 && ($isWebMountRestrictionIgnored || $this->isRecordInWebMountWithRow($table, $id, $rawRow) || $this->admin)) {
-            if ($table != 'pages') {
-                $output = $rawRow;
-                BackendUtility::fixVersioningPid($table, $output, true);
-                // If record found, check page as well:
-                if (is_array($output)) {
-                    // Looking up the page for record:
-                    $mres = $this->doesRecordExist_pageLookUp($output['pid'], $perms);
-                    $pageRec = $this->databaseConnection->sql_fetch_assoc($mres);
-                    // Return TRUE if either a page was found OR if the PID is zero AND the user is ADMIN (in which case the record is at root-level):
-                    $isRootLevelRestrictionIgnored = BackendUtility::isRootLevelRestrictionIgnored($table);
-                    if (is_array($pageRec) || !$output['pid'] && ($isRootLevelRestrictionIgnored || $this->admin)) {
-                        return true;
+            if ($isWebMountRestrictionIgnored || $this->isRecordInWebMountWithRow($table, $id, $rawRow) || $this->admin) {
+                if ($table != 'pages') {
+                    $output = $rawRow;
+                    BackendUtility::fixVersioningPid($table, $output, true);
+                    // If record found, check page as well:
+                    if (is_array($output)) {
+                        // Looking up the page for record:
+                        $mres = $this->doesRecordExist_pageLookUp($output['pid'], $perms);
+                        $pageRec = $this->databaseConnection->sql_fetch_assoc($mres);
+                        // Return TRUE if either a page was found OR if the PID is zero AND the user is ADMIN (in which case the record is at root-level):
+                        $isRootLevelRestrictionIgnored = BackendUtility::isRootLevelRestrictionIgnored($table);
+                        if (is_array($pageRec) || !$output['pid'] && ($isRootLevelRestrictionIgnored || $this->admin)) {
+                            return true;
+                        }
                     }
+                    return false;
+                } else {
+                    $mres = $this->doesRecordExist_pageLookUp($id, $perms);
+                    return $this->databaseConnection->sql_num_rows($mres);
                 }
-                return false;
-            } else {
-                $mres = $this->doesRecordExist_pageLookUp($id, $perms);
-                return $this->databaseConnection->sql_num_rows($mres);
             }
         }
         return false;
