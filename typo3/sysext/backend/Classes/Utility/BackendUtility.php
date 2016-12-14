@@ -133,17 +133,48 @@ class BackendUtility
             $row = self::getRecord($table, $uid, $internalFields, $where, $useDeleteClause);
             self::workspaceOL($table, $row, -99, $unsetMovePointers);
             if (is_array($row)) {
-                foreach ($row as $key => $_) {
-                    if (!GeneralUtility::inList($fields, $key) && $key[0] !== '_') {
-                        unset($row[$key]);
-                    }
-                }
+                $row = static::removeColumnsFromArray($row, GeneralUtility::trimExplode(',', $internalFields));
             }
         } else {
             $row = self::getRecord($table, $uid, $fields, $where, $useDeleteClause);
             self::workspaceOL($table, $row, -99, $unsetMovePointers);
         }
         return $row;
+    }
+
+    /**
+     * Like getRecord(), but overlays workspace version if any.
+     *
+     * @param array $row databaserow
+     * @param string $table Table name present in $GLOBALS['TCA']
+     * @param string $fields List of fields to select
+     * @param bool $unsetMovePointers If TRUE the function does not return a "pointer" row for moved records in a workspace
+     * @return array Returns modified row
+     */
+    public static function getRecordWSOLWithRow(array $row, $table, $fields = '*', $unsetMovePointers = false)
+    {
+        self::workspaceOL($table, $row, -99, $unsetMovePointers);
+        if ($fields !== '*') {
+            $row = static::removeColumnsFromArray($row, GeneralUtility::trimExplode(',', $fields));
+        }
+        return $row;
+    }
+
+    /**
+     * Uses array_filter to remove all elements not declared in list
+     * of column names in $preserveFields. If list is empty, all
+     * columns are preserved. Preserves all underscore-prefixed keys
+     * even if they are not in the $preserveFields array.
+     *
+     * @param array $input
+     * @param array $preserveFields
+     * @return array
+     */
+    protected static function removeColumnsFromArray(array $input, array $preserveFields)
+    {
+        return array_filter($input, function ($key) use ($preserveFields) {
+            return $key[0] !== '_' && (empty($preserveFields) || in_array($key, ARRAY_FILTER_USE_KEY));
+        });
     }
 
     /**
