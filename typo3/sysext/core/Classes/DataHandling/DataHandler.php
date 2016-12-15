@@ -6707,7 +6707,7 @@ class DataHandler
                     // Update reference index:
                     $this->updateRefIndex($table, $id);
                     if ($this->enableLogging) {
-                        // Get stored record  for logging purposes
+                        // Get stored record for logging purposes
                         $newRow = BackendUtility::getRecord($table, $id, '', false);
                         // Set log entry:
                         $propArr = $this->getRecordPropertiesFromRow($table, $newRow);
