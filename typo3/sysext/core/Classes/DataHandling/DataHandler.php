@@ -94,21 +94,6 @@ class DataHandler
     public $stripslashes_values = true;
 
     /**
-     * This will read the record after having updated or inserted it. If anything is not properly submitted an error
-     * is written to the log. This feature consumes extra time by selecting records
-     *
-     * @var bool
-     */
-    public $checkStoredRecords = true;
-
-    /**
-     * If set, values '' and 0 will equal each other when the stored records are checked.
-     *
-     * @var bool
-     */
-    public $checkStoredRecords_loose = true;
-
-    /**
      * If this is set, then a page is deleted by deleting the whole branch under it (user must have
      * delete permissions to it all). If not set, then the page is deleted ONLY if it has no branch.
      *
@@ -6722,10 +6707,8 @@ class DataHandler
                     // Update reference index:
                     $this->updateRefIndex($table, $id);
                     if ($this->enableLogging) {
-                        $newRow = [];
-                        if ($this->checkStoredRecords) {
-                            $newRow = $this->checkStoredRecord($table, $id, $fieldArray, 2);
-                        }
+                        // Get stored record  for logging purposes
+                        $newRow = BackendUtility::getRecord($table, $id, '', false);
                         // Set log entry:
                         $propArr = $this->getRecordPropertiesFromRow($table, $newRow);
                         $theLogId = $this->log($table, $id, 2, $propArr['pid'], 0, 'Record \'%s\' (%s) was updated.' . ($propArr['_ORIG_pid'] == -1 ? ' (Offline version).' : ' (Online).'), 10, [$propArr['header'], $table . ':' . $id], $propArr['event_pid']);
@@ -6789,10 +6772,9 @@ class DataHandler
                         $this->substNEWwithIDs[$NEW_id] = $id;
                         $this->substNEWwithIDs_table[$NEW_id] = $table;
                     }
-                    $newRow = [];
-                    // Checking the record is properly saved and writing to log
-                    if ($this->enableLogging && $this->checkStoredRecords) {
-                        $newRow = $this->checkStoredRecord($table, $id, $fieldArray, 1);
+                    // Get stored record if logging is enabled
+                    if ($this->enableLogging) {
+                        $newRow = BackendUtility::getRecord($table, $id, '', false);
                     }
                     // Update reference index:
                     $this->updateRefIndex($table, $id);
@@ -6815,48 +6797,6 @@ class DataHandler
                     $this->log($table, $id, 1, 0, 2, 'SQL error: \'%s\' (%s)', 12, [$this->databaseConnection->sql_error(), $table . ':' . $id]);
                 }
             }
-        }
-        return null;
-    }
-
-    /**
-     * Checking stored record to see if the written values are properly updated.
-     *
-     * @param string $table Record table name
-     * @param int $id Record uid
-     * @param array $fieldArray Array of field=>value pairs to insert/update
-     * @param string $action Action, for logging only.
-     * @return array|NULL Selected row
-     * @see insertDB(), updateDB()
-     */
-    public function checkStoredRecord($table, $id, $fieldArray, $action)
-    {
-        $id = (int)$id;
-        if (is_array($GLOBALS['TCA'][$table]) && $id) {
-            $res = $this->databaseConnection->exec_SELECTquery('*', $table, 'uid=' . (int)$id);
-            if ($row = $this->databaseConnection->sql_fetch_assoc($res)) {
-                // Traverse array of values that was inserted into the database and compare with the actually stored value:
-                $errors = [];
-                foreach ($fieldArray as $key => $value) {
-                    if ($this->checkStoredRecords_loose && !$value && !$row[$key]) {
-                    } elseif ((string)$value !== (string)$row[$key]) {
-                        $errors[] = $key;
-                    }
-                }
-                // Set log message if there were fields with unmatching values:
-                if ($this->enableLogging && !empty($errors)) {
-                    $message = sprintf(
-                        'These fields of record %d in table "%s" have not been saved correctly: %s! The values might have changed due to type casting of the database.',
-                        $id,
-                        $table,
-                        implode(', ', $errors)
-                    );
-                    $this->log($table, $id, $action, 0, 1, $message);
-                }
-                // Return selected rows:
-                return $row;
-            }
-            $this->databaseConnection->sql_free_result($res);
         }
         return null;
     }
