@@ -6708,7 +6708,7 @@ class DataHandler
                     $this->updateRefIndex($table, $id);
                     if ($this->enableLogging) {
                         // Get stored record for logging purposes
-                        $newRow = BackendUtility::getRecord($table, $id, '', false);
+                        $newRow = BackendUtility::getRecord($table, $id);
                         // Set log entry:
                         $propArr = $this->getRecordPropertiesFromRow($table, $newRow);
                         $theLogId = $this->log($table, $id, 2, $propArr['pid'], 0, 'Record \'%s\' (%s) was updated.' . ($propArr['_ORIG_pid'] == -1 ? ' (Offline version).' : ' (Online).'), 10, [$propArr['header'], $table . ':' . $id], $propArr['event_pid']);
@@ -6774,7 +6774,7 @@ class DataHandler
                     }
                     // Get stored record if logging is enabled
                     if ($this->enableLogging) {
-                        $newRow = BackendUtility::getRecord($table, $id, '', false);
+                        $newRow = BackendUtility::getRecord($table, $id);
                     }
                     // Update reference index:
                     $this->updateRefIndex($table, $id);
