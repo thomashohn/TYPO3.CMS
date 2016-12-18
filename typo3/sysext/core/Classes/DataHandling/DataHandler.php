@@ -502,13 +502,6 @@ class DataHandler
     public $cachedTSconfig = [];
 
     /**
-     * Used for caching page records in pageInfo()
-     *
-     * @var array
-     */
-    public $pageCache = [];
-
-    /**
      * Array caching workspace access for BE_USER
      *
      * @var array
@@ -6601,24 +6594,35 @@ class DataHandler
      * Information lookup
      *
      *****************************/
+
     /**
      * Returns the value of the $field from page $id
      * NOTICE; the function caches the result for faster delivery next time. You can use this function repeatedly without performance loss since it doesn't look up the same record twice!
-     *
      * @param int $id Page uid
      * @param string $field Field name for which to return value
-     * @return string Value of the field. Result is cached in $this->pageCache[$id][$field] and returned from there next time!
+     * @param bool $clearCacheValue clear cache value
+     *
+     * @return mixed void/Value of the field. Result is cached in $pageInfoCache[$id][$field] and returned from there next time! or void
      */
-    public function pageInfo($id, $field)
+    public function pageInfo($id, $field, $clearCacheValue = false)
     {
-        if (!isset($this->pageCache[$id])) {
-            $res = $this->databaseConnection->exec_SELECTquery('*', 'pages', 'uid=' . (int)$id);
-            if ($this->databaseConnection->sql_num_rows($res)) {
-                $this->pageCache[$id] = $this->databaseConnection->sql_fetch_assoc($res);
-            }
-            $this->databaseConnection->sql_free_result($res);
+        static $pageInfoCache = [];
+
+        // Do we want to clear a value or use cache?
+        if ($clearCacheValue) {
+            unset($pageInfoCache[$id]);
+            return;
         }
-        return $this->pageCache[$id][$field];
+
+        // Value is not cached => try to fetch it and cache it
+        if (!isset($pageInfoCache[$id])) {
+            $row = BackendUtility::getRecord('pages', (int)$id, '*', '', false);
+            if (is_array($row)) {
+                $pageInfoCache[$id] = $row;
+            }
+        }
+
+        return $pageInfoCache[$id][$field];
     }
 
     /**
@@ -6736,7 +6740,7 @@ class DataHandler
                     $this->registerRecordIdForPageCacheClearing($table, $id);
                     // Unset the pageCache for the id if table was page.
                     if ($table == 'pages') {
-                        unset($this->pageCache[$id]);
+                        $this->pageInfo($table, '*', true);
                     }
                 } elseif ($this->enableLogging) {
                     $this->log($table, $id, 2, 0, 2, 'SQL error: \'%s\' (%s)', 12, [$this->databaseConnection->sql_error(), $table . ':' . $id]);
