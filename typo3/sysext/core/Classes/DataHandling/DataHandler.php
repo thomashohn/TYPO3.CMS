@@ -508,13 +508,6 @@ class DataHandler
      */
     public $pageCache = [];
 
-    /**
-     * Array caching workspace access for BE_USER
-     *
-     * @var array
-     */
-    public $checkWorkspaceCache = [];
-
     // Other arrays:
     /**
      * For accumulation of MM relations that must be written after new records are created.
