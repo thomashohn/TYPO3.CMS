@@ -467,13 +467,6 @@ class DataHandler
 
     // Internal caching arrays
     /**
-     * Used by function checkRecordUpdateAccess() to store whether a record is updatable or not.
-     *
-     * @var array
-     */
-    public $recUpdateAccessCache = [];
-
-    /**
      * User by function checkRecordInsertAccess() to store whether a record can be inserted on a page id
      *
      * @var array
@@ -6248,6 +6241,7 @@ class DataHandler
      */
     public function checkRecordUpdateAccess($table, $id, $data = false, $hookObjectsArr = null)
     {
+        static $recordUpdateAccessCache;
         $res = null;
         if (is_array($hookObjectsArr)) {
             foreach ($hookObjectsArr as $hookObj) {
@@ -6263,17 +6257,16 @@ class DataHandler
         }
         if ($GLOBALS['TCA'][$table] && (int)$id > 0) {
             // If information is cached, return it
-            if (isset($this->recUpdateAccessCache[$table][$id])) {
-                return $this->recUpdateAccessCache[$table][$id];
+            if (isset($recordUpdateAccessCache[$table][$id])) {
+                return $recordUpdateAccessCache[$table][$id];
             } elseif ($this->doesRecordExist($table, $id, 'edit')) {
                 $res = 1;
             }
             // Cache the result
-            $this->recUpdateAccessCache[$table][$id] = $res;
+            $recordUpdateAccessCache[$table][$id] = $res;
         }
         return $res;
     }
-
     /**
      * Checks if user may insert a record from $insertTable on $pid
      * Does not check for workspace, use BE_USER->workspaceAllowLiveRecordsInPID for this in addition to this function call.
