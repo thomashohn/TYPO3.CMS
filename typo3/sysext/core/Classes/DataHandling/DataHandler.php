@@ -474,13 +474,6 @@ class DataHandler
     public $recUpdateAccessCache = [];
 
     /**
-     * User by function checkRecordInsertAccess() to store whether a record can be inserted on a page id
-     *
-     * @var array
-     */
-    public $recInsertAccessCache = [];
-
-    /**
      * Caching array for check of whether records are in a webmount
      *
      * @var array
@@ -6285,19 +6278,21 @@ class DataHandler
      */
     public function checkRecordInsertAccess($insertTable, $pid, $action = 1)
     {
+        static $recordInsertAccessCache = [];
+
         $pid = (int)$pid;
         if ($pid < 0) {
             return false;
         }
         // If information is cached, return it
-        if (isset($this->recInsertAccessCache[$insertTable][$pid])) {
-            return $this->recInsertAccessCache[$insertTable][$pid];
+        if (isset($recordInsertAccessCache[$insertTable][$pid])) {
+            return $recordInsertAccessCache[$insertTable][$pid];
         }
 
         $res = false;
         if ($insertTable === 'pages') {
             $perms = $this->pMap['new'];
-        // @todo: find a more generic way to handle content relations of a page (without needing content editing access to that page)
+            // @todo: find a more generic way to handle content relations of a page (without needing content editing access to that page)
         } elseif (($insertTable === 'sys_file_reference') && array_key_exists('pages', $this->datamap)) {
             $perms = $this->pMap['edit'];
         } else {
@@ -6310,7 +6305,7 @@ class DataHandler
             if ($this->isTableAllowedForThisPage($pid, $insertTable)) {
                 $res = true;
                 // Cache the result
-                $this->recInsertAccessCache[$insertTable][$pid] = $res;
+                $recordInsertAccessCache[$insertTable][$pid] = $res;
             } elseif ($this->enableLogging) {
                 $propArr = $this->getRecordProperties('pages', $pid);
                 $this->log($insertTable, $pid, $action, 0, 1, 'Attempt to insert record on page \'%s\' (%s) where this table, %s, is not allowed', 11, [$propArr['header'], $pid, $insertTable], $propArr['event_pid']);
