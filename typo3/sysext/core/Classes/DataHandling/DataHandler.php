@@ -488,13 +488,6 @@ class DataHandler
     public $isRecordInWebMount_Cache = [];
 
     /**
-     * Caching array for page ids in webmounts
-     *
-     * @var array
-     */
-    public $isInWebMount_Cache = [];
-
-    /**
      * Caching for collecting TSconfig for page ids
      *
      * @var array
@@ -6231,10 +6224,11 @@ class DataHandler
      */
     public function isInWebMount($pid)
     {
-        if (!isset($this->isInWebMount_Cache[$pid])) {
-            $this->isInWebMount_Cache[$pid] = $this->BE_USER->isInWebMount($pid);
+        static $isInWebMount_Cache = [];
+        if (!isset($isInWebMount_Cache[$pid])) {
+            $isInWebMount_Cache[$pid] = $this->BE_USER->isInWebMount($pid);
         }
-        return $this->isInWebMount_Cache[$pid];
+        return $isInWebMount_Cache[$pid];
     }
 
     /**
