@@ -6241,7 +6241,7 @@ class DataHandler
      */
     public function checkRecordUpdateAccess($table, $id, $data = false, $hookObjectsArr = null)
     {
-        static $recordUpdateAccessCache;
+        static $recordUpdateAccessCache = [];
         $res = null;
         if (is_array($hookObjectsArr)) {
             foreach ($hookObjectsArr as $hookObj) {
