@@ -6278,15 +6278,16 @@ class DataHandler
      */
     public function checkRecordInsertAccess($insertTable, $pid, $action = 1)
     {
-        static $recordInsertAccessCache = [];
-
         $pid = (int)$pid;
         if ($pid < 0) {
             return false;
         }
+
+        $cacheId = md5('checkRecordInsertAccess' . ':' . $insertTable . ':' . $pid);
+
         // If information is cached, return it
-        if (isset($recordInsertAccessCache[$insertTable][$pid])) {
-            return $recordInsertAccessCache[$insertTable][$pid];
+        if ($this->runtimeCache->has($cacheId)) {
+            return $this->runtimeCache->get($cacheId);
         }
 
         $res = false;
@@ -6305,7 +6306,7 @@ class DataHandler
             if ($this->isTableAllowedForThisPage($pid, $insertTable)) {
                 $res = true;
                 // Cache the result
-                $recordInsertAccessCache[$insertTable][$pid] = $res;
+                $this->runtimeCache->set($cacheId, $res);
             } elseif ($this->enableLogging) {
                 $propArr = $this->getRecordProperties('pages', $pid);
                 $this->log($insertTable, $pid, $action, 0, 1, 'Attempt to insert record on page \'%s\' (%s) where this table, %s, is not allowed', 11, [$propArr['header'], $pid, $insertTable], $propArr['event_pid']);
