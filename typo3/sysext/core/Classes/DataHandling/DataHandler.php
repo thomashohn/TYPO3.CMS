@@ -6241,7 +6241,6 @@ class DataHandler
      */
     public function checkRecordUpdateAccess($table, $id, $data = false, $hookObjectsArr = null)
     {
-        static $recordUpdateAccessCache = [];
         $res = null;
         if (is_array($hookObjectsArr)) {
             foreach ($hookObjectsArr as $hookObj) {
@@ -6256,14 +6255,18 @@ class DataHandler
             $res = 0;
         }
         if ($GLOBALS['TCA'][$table] && (int)$id > 0) {
+            $cacheId = md5('checkRecordUpdateAccess' . ':' . $table . ':' . $pid);
+
             // If information is cached, return it
-            if (isset($recordUpdateAccessCache[$table][$id])) {
-                return $recordUpdateAccessCache[$table][$id];
-            } elseif ($this->doesRecordExist($table, $id, 'edit')) {
+            if ($this->runtimeCache->has($cacheId)) {
+                return $this->runtimeCache->get($cacheId);
+            }
+
+            if ($this->doesRecordExist($table, $id, 'edit')) {
                 $res = 1;
             }
             // Cache the result
-            $recordUpdateAccessCache[$table][$id] = $res;
+            $this->runtimeCache->set($cacheId, $res);
         }
         return $res;
     }
