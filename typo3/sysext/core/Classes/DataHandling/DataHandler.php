@@ -6598,31 +6598,33 @@ class DataHandler
     /**
      * Returns the value of the $field from page $id
      * NOTICE; the function caches the result for faster delivery next time. You can use this function repeatedly without performance loss since it doesn't look up the same record twice!
+     *
      * @param int $id Page uid
      * @param string $field Field name for which to return value
      * @param bool $clearCacheValue clear cache value
-     *
-     * @return mixed void/Value of the field. Result is cached in $pageInfoCache[$id][$field] and returned from there next time! or void
+     * @return string Value of the field. Result is cached in runtimecache and returned from there next time!
      */
     public function pageInfo($id, $field, $clearCacheValue = false)
     {
-        static $pageInfoCache = [];
+        $cacheId = md5('pageInfo' . ':' . $id);
 
         // Do we want to clear a value or use cache?
         if ($clearCacheValue) {
-            unset($pageInfoCache[$id]);
+            $this->runtimeCache->remove($cacheId);
             return;
         }
 
-        // Value is not cached => try to fetch it and cache it
-        if (!isset($pageInfoCache[$id])) {
+        if ($this->runtimeCache->has($cacheId)) {
+            $pageInfo = $this->runtimeCache->get($cacheId);
+        } else {
             $row = BackendUtility::getRecord('pages', (int)$id, '*', '', false);
             if (is_array($row)) {
-                $pageInfoCache[$id] = $row;
+                $pageInfo = $row;
             }
+            $this->databaseConnection->sql_free_result($res);
         }
 
-        return $pageInfoCache[$id][$field];
+        return $pageInfo[$field];
     }
 
     /**
