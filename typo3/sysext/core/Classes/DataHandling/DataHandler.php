@@ -6224,11 +6224,16 @@ class DataHandler
      */
     public function isInWebMount($pid)
     {
-        static $isInWebMount_Cache = [];
-        if (!isset($isInWebMount_Cache[$pid])) {
-            $isInWebMount_Cache[$pid] = $this->BE_USER->isInWebMount($pid);
+        $cacheId = md5('isInWebMount' . ':' . $pid);
+
+        if ($this->runtimeCache->has($cacheId)) {
+            return $this->runtimeCache->get($cacheId);
         }
-        return $isInWebMount_Cache[$pid];
+
+        $isInWebMount = $this->BE_USER->isInWebMount($pid);
+        $this->runtimeCache->set($cacheId, $isInWebMount);
+
+        return $isInWebMount;
     }
 
     /**
