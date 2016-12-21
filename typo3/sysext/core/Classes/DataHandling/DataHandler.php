@@ -706,6 +706,21 @@ class DataHandler
     protected $cachePrefixNestedElementCalls = 'core-datahandler-nestedElementCalls-';
 
     /**
+     * Internal entries to be bulk written to syslog
+     *
+     * @var array
+     *
+     */
+    protected static $bulkSyslogArray = [];
+
+    /**
+     * Flag to determine if sys log entries should be stored as bulk insert at the end
+     *
+     * @var bool
+     */
+    protected $bulkStoreSyslog = false;
+
+    /**
      *
      */
     public function __construct()
@@ -3399,6 +3414,11 @@ class DataHandler
         if ($this->isOuterMostInstance()) {
             $this->processClearCacheQueue();
             $this->resetNestedElementCalls();
+        }
+
+        // Check if we should bulk store syslog
+        if ($this->bulkStoreSyslog) {
+            $this->bulkStoreSyslogToDatabase();
         }
     }
 
@@ -7848,6 +7868,15 @@ class DataHandler
     }
 
     /**
+     * Method to overwrite the value of flag bulkStoreSyslog
+     *
+     * @param bool $bulkStoreSyslog
+     */
+    public function setBulkStoreSyslog($bulkStoreSyslog) {
+        $this->bulkStoreSyslog = $bulkStoreSyslog;
+    }
+
+    /**
      * Do the actual clear cache
      * @return void
      */
@@ -8129,7 +8158,37 @@ class DataHandler
             }
             $this->errorLog[] = '[' . $type . '.' . $action . '.' . $details_nr . ']: ' . $detailMessage;
         }
-        return $this->BE_USER->writelog($type, $action, $error, $details_nr, $details, $data, $table, $recuid, $recpid, $event_pid, $NEWid);
+
+        if ($this->bulkStoreSyslog) {
+            if (!empty($this->BE_USER->user['ses_backuserid'])) {
+                if (empty($data)) {
+                    $data = [];
+                }
+                $data['originalUser'] = $this->BE_USER->user['ses_backuserid'];
+            }
+
+            $fields_values = [
+                'userid' => (int)$this->BE_USER->user['uid'],
+                'type' => (int)$type,
+                'action' => (int)$action,
+                'error' => (int)$error,
+                'details_nr' => (int)$details_nr,
+                'details' => $details,
+                'log_data' => serialize($data),
+                'tablename' => $table,
+                'recuid' => (int)$recuid,
+                'IP' => (string)GeneralUtility::getIndpEnv('REMOTE_ADDR'),
+                'tstamp' => time(),
+                'event_pid' => (int)$event_pid,
+                'NEWid' => $NEWid,
+                'workspace' => $this->BE_USER->workspace
+            ];
+
+            static::$bulkSyslogArray[] = $fields_values;
+            return 0;
+        } else {
+            return $this->BE_USER->writelog($type, $action, $error, $details_nr, $details, $data, $table, $recuid, $recpid, $event_pid, $NEWid);
+        }
     }
 
     /**
@@ -8351,6 +8410,34 @@ class DataHandler
     public function isOuterMostInstance()
     {
         return $this->getOuterMostInstance() === $this;
+    }
+
+
+    /**
+     * Method to store values from $bulkSyslogArray via bulk insert into sys_log
+     */
+    protected function bulkStoreSyslogToDatabase()
+    {
+        if (!empty(static::$bulkSyslogArray)) {
+            $fields = [
+                'userid',
+                'type',
+                'action',
+                'error',
+                'details_nr',
+                'details',
+                'log_data',
+                'tablename',
+                'recuid',
+                'IP',
+                'tstamp',
+                'event_pid',
+                'NEWid',
+                'workspace'
+            ];
+            $this->databaseConnection->exec_INSERTmultipleRows('sys_log', $fields, array_values(static::$bulkSyslogArray));
+            static::$bulkSyslogArray = [];
+        }
     }
 
     /**
