@@ -6772,22 +6772,19 @@ class DataHandler
                         $this->substNEWwithIDs[$NEW_id] = $id;
                         $this->substNEWwithIDs_table[$NEW_id] = $table;
                     }
-                    // Get stored record if logging is enabled
-                    if ($this->enableLogging) {
-                        $newRow = BackendUtility::getRecord($table, $id);
-                    }
+
                     // Update reference index:
                     $this->updateRefIndex($table, $id);
                     if ($newVersion) {
                         if ($this->enableLogging) {
-                            $propArr = $this->getRecordPropertiesFromRow($table, $newRow);
+                            $propArr = $this->getRecordPropertiesFromRow($table, $fieldArray);
                             $this->log($table, $id, 1, 0, 0, 'New version created of table \'%s\', uid \'%s\'. UID of new version is \'%s\'', 10, [$table, $fieldArray['t3ver_oid'], $id], $propArr['event_pid'], $NEW_id);
                         }
                     } else {
                         if ($this->enableLogging) {
-                            $propArr = $this->getRecordPropertiesFromRow($table, $newRow);
+                            $propArr = $this->getRecordPropertiesFromRow($table, $fieldArray);
                             $page_propArr = $this->getRecordProperties('pages', $propArr['pid']);
-                            $this->log($table, $id, 1, 0, 0, 'Record \'%s\' (%s) was inserted on page \'%s\' (%s)', 10, [$propArr['header'], $table . ':' . $id, $page_propArr['header'], $newRow['pid']], $newRow['pid'], $NEW_id);
+                            $this->log($table, $id, 1, 0, 0, 'Record \'%s\' (%s) was inserted on page \'%s\' (%s)', 10, [$propArr['header'], $table . ':' . $id, $page_propArr['header'], $fieldArray['pid']], $fieldArray['pid'], $NEW_id);
                         }
                         // Clear cache for relevant pages:
                         $this->registerRecordIdForPageCacheClearing($table, $id);
