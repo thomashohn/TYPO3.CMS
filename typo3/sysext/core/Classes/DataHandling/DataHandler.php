@@ -2969,48 +2969,49 @@ class DataHandler
      */
     public function checkValue_group_select_processDBdata($valueArray, $tcaFieldConf, $id, $status, $type, $currentTable, $currentField)
     {
-        // There is not need to perform the analysis if $valueArray is not empty
-        if (!empty($valueArray)) {
-            if ($type === 'group') {
-                $tables = $tcaFieldConf['allowed'];
-            } elseif (!empty($tcaFieldConf['special']) && $tcaFieldConf['special'] === 'languages') {
-                $tables = 'sys_language';
-            } else {
-                $tables = $tcaFieldConf['foreign_table'];
-            }
-            $prep = $type == 'group' ? $tcaFieldConf['prepend_tname'] : '';
-            $newRelations = implode(',', $valueArray);
-            /** @var $dbAnalysis RelationHandler */
-            $dbAnalysis = $this->createRelationHandlerInstance();
-            $dbAnalysis->registerNonTableValues = !empty($tcaFieldConf['allowNonIdValues']);
-            $dbAnalysis->start($newRelations, $tables, '', 0, $currentTable, $tcaFieldConf);
-            if ($tcaFieldConf['MM']) {
-                // convert submitted items to use version ids instead of live ids
-                // (only required for MM relations in a workspace context)
-                $dbAnalysis->convertItemArray();
-                if ($status == 'update') {
-                    /** @var $oldRelations_dbAnalysis RelationHandler */
-                    $oldRelations_dbAnalysis = $this->createRelationHandlerInstance();
-                    $oldRelations_dbAnalysis->registerNonTableValues = !empty($tcaFieldConf['allowNonIdValues']);
-                    // Db analysis with $id will initialize with the existing relations
-                    $oldRelations_dbAnalysis->start('', $tables, $tcaFieldConf['MM'], $id, $currentTable,
-                        $tcaFieldConf);
-                    $oldRelations = implode(',', $oldRelations_dbAnalysis->getValueArray());
-                    $dbAnalysis->writeMM($tcaFieldConf['MM'], $id, $prep);
-                    if ($oldRelations != $newRelations) {
-                        $this->mmHistoryRecords[$currentTable . ':' . $id]['oldRecord'][$currentField] = $oldRelations;
-                        $this->mmHistoryRecords[$currentTable . ':' . $id]['newRecord'][$currentField] = $newRelations;
-                    } else {
-                        $this->mmHistoryRecords[$currentTable . ':' . $id]['oldRecord'][$currentField] = '';
-                        $this->mmHistoryRecords[$currentTable . ':' . $id]['newRecord'][$currentField] = '';
-                    }
+        // If $valueArray is empty there is no need to perform further actions
+        if (empty($valueArray)) {
+            return $valueArray;
+        }
+
+        if ($type === 'group') {
+            $tables = $tcaFieldConf['allowed'];
+        } elseif (!empty($tcaFieldConf['special']) && $tcaFieldConf['special'] === 'languages') {
+            $tables = 'sys_language';
+        } else {
+            $tables = $tcaFieldConf['foreign_table'];
+        }
+        $prep = $type == 'group' ? $tcaFieldConf['prepend_tname'] : '';
+        $newRelations = implode(',', $valueArray);
+        /** @var $dbAnalysis RelationHandler */
+        $dbAnalysis = $this->createRelationHandlerInstance();
+        $dbAnalysis->registerNonTableValues = !empty($tcaFieldConf['allowNonIdValues']);
+        $dbAnalysis->start($newRelations, $tables, '', 0, $currentTable, $tcaFieldConf);
+        if ($tcaFieldConf['MM']) {
+            // convert submitted items to use version ids instead of live ids
+            // (only required for MM relations in a workspace context)
+            $dbAnalysis->convertItemArray();
+            if ($status == 'update') {
+                /** @var $oldRelations_dbAnalysis RelationHandler */
+                $oldRelations_dbAnalysis = $this->createRelationHandlerInstance();
+                $oldRelations_dbAnalysis->registerNonTableValues = !empty($tcaFieldConf['allowNonIdValues']);
+                // Db analysis with $id will initialize with the existing relations
+                $oldRelations_dbAnalysis->start('', $tables, $tcaFieldConf['MM'], $id, $currentTable, $tcaFieldConf);
+                $oldRelations = implode(',', $oldRelations_dbAnalysis->getValueArray());
+                $dbAnalysis->writeMM($tcaFieldConf['MM'], $id, $prep);
+                if ($oldRelations != $newRelations) {
+                    $this->mmHistoryRecords[$currentTable . ':' . $id]['oldRecord'][$currentField] = $oldRelations;
+                    $this->mmHistoryRecords[$currentTable . ':' . $id]['newRecord'][$currentField] = $newRelations;
                 } else {
-                    $this->dbAnalysisStore[] = [$dbAnalysis, $tcaFieldConf['MM'], $id, $prep, $currentTable];
+                    $this->mmHistoryRecords[$currentTable . ':' . $id]['oldRecord'][$currentField] = '';
+                    $this->mmHistoryRecords[$currentTable . ':' . $id]['newRecord'][$currentField] = '';
                 }
-                $valueArray = $dbAnalysis->countItems();
             } else {
-                $valueArray = $dbAnalysis->getValueArray($prep);
+                $this->dbAnalysisStore[] = [$dbAnalysis, $tcaFieldConf['MM'], $id, $prep, $currentTable];
             }
+            $valueArray = $dbAnalysis->countItems();
+        } else {
+            $valueArray = $dbAnalysis->getValueArray($prep);
         }
         // Here we should see if 1) the records exist anymore, 2) which are new and check if the BE_USER has read-access to the new ones.
         return $valueArray;
