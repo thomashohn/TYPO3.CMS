@@ -2969,11 +2969,6 @@ class DataHandler
      */
     public function checkValue_group_select_processDBdata($valueArray, $tcaFieldConf, $id, $status, $type, $currentTable, $currentField)
     {
-        // If $valueArray is empty there is no need to perform further actions
-        if (empty($valueArray)) {
-            return $valueArray;
-        }
-
         if ($type === 'group') {
             $tables = $tcaFieldConf['allowed'];
         } elseif (!empty($tcaFieldConf['special']) && $tcaFieldConf['special'] === 'languages') {
@@ -2983,6 +2978,18 @@ class DataHandler
         }
         $prep = $type == 'group' ? $tcaFieldConf['prepend_tname'] : '';
         $newRelations = implode(',', $valueArray);
+
+        // If $valueArray is empty there is no need to perform further actions
+        if (empty($valueArray)) {
+            return $valueArray;
+        }
+
+        // If newRelations is empty there is no need to perform further actions since $dbAnalysis->start is called
+        // with empty $MMtable and $MMuid = 0 => readList will be called empty input which the returns early
+        if ($newRelations == '') {
+            return $valueArray;
+        }
+
         /** @var $dbAnalysis RelationHandler */
         $dbAnalysis = $this->createRelationHandlerInstance();
         $dbAnalysis->registerNonTableValues = !empty($tcaFieldConf['allowNonIdValues']);
