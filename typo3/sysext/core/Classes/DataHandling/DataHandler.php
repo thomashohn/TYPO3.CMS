@@ -2979,14 +2979,10 @@ class DataHandler
         $prep = $type == 'group' ? $tcaFieldConf['prepend_tname'] : '';
         $newRelations = implode(',', $valueArray);
 
-        // If $valueArray is empty there is no need to perform further actions
-        if (empty($valueArray)) {
-            return $valueArray;
-        }
-
-        // If newRelations is empty there is no need to perform further actions since $dbAnalysis->start is called
-        // with empty $MMtable and $MMuid = 0 => readList will be called empty input which the returns early
-        if ($newRelations == '') {
+        // If $tcaFieldConf['MM'] is not set and $valueArray is empty there is no need to perform further actions
+        // since $dbAnalysis->start is called with empty $MMtable and $MMuid = 0 => readList will be called empty input
+        // which then returns early
+        if ((!$tcaFieldConf['MM']) && (empty($valueArray))) {
             return $valueArray;
         }
 
